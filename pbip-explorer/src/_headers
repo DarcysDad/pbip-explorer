@@ -1,0 +1,11 @@
+# Cloudflare Pages / Netlify response headers.
+# connect-src 'none' is the important line: the page cannot send data anywhere, and visitors can verify that in DevTools.
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+
+/vendor/*
+  Cache-Control: public, max-age=31536000, immutable

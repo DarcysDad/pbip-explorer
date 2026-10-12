@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PBIP Explorer</title>
+<meta name="description" content="Explore Power BI semantic models from PBIP/TMDL project files: relationships, DAX lineage, report usage and measure audit. Runs locally in your browser.">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css">
+<script src="js/theme-init.js"></script>
+</head>
+<body>
+<header>
+  <div class="brand"><b>PBIP<span class="dot">·</span>Explorer</b> <small>for Power BI projects · v26</small></div>
+  <button class="btn primary" id="openBtn">⊞ Open PBIP / model folder…</button>
+  <button class="btn" id="demoBtn" title="Load a small synthetic model to try the tool">▷ Demo model</button>
+  <button class="btn" id="vsBtn" title="Set the absolute path of your PBIP project folder on disk to enable 'Open in VS Code' deep links">⌁ VS Code</button>
+  <button class="btn" id="themeBtn" title="Toggle light / dark theme">☀️ Light</button>
+  <input type="file" id="dirInput" webkitdirectory directory multiple hidden>
+  <span class="status" id="status">No model loaded</span>
+  <div class="stats" id="stats" style="display:none">
+    <span><b id="sT">0</b> tables</span>
+    <span><b id="sM">0</b> measures</span>
+    <span><b id="sC">0</b> columns</span>
+    <span><b id="sR">0</b> relationships</span>
+  </div>
+</header>
+
+<div class="banner" id="mermaidBanner">
+  The diagram library didn't load, so lineage diagrams show as copyable Mermaid text you can paste into
+  <code>mermaid.live</code>. If you're running a local copy, keep <code>vendor/mermaid.min.js</code> beside the page.
+</div>
+
+<main>
+  <aside>
+    <div class="search"><input id="search" placeholder="filter tables, measures, columns…"></div>
+    <div class="tree" id="tree">
+      <div class="empty" style="height:auto;padding:40px 16px"><div class="big">Nothing loaded yet.</div></div>
+    </div>
+  </aside>
+
+  <div class="resizer" id="resizer" title="Drag to resize · double-click to reset"></div>
+
+  <section class="content">
+    <div class="tabs">
+      <div class="tab active" data-view="model">Model Explorer</div>
+      <div class="tab" data-view="lineage">Lineage</div>
+      <div class="tab" data-view="detail">Source &amp; Detail</div>
+      <div class="tab" id="reportTab" data-view="report" style="display:none">▭ Report</div>
+      <div class="tab" data-view="audit">⚠ Audit</div>
+    </div>
+    <div class="views">
+
+      <!-- MODEL MAP -->
+      <div class="view active" id="view-model">
+        <div class="toolbar">
+          <button class="btn" id="overviewBtn" style="display:none">← Overview</button>
+          <select id="focusSel" aria-label="Jump to a table"><option value="">Jump to a table…</option></select>
+          <button class="btn" id="copyModelMmd" style="display:none" title="Copy this table and its direct neighbours as a Mermaid diagram">⧉ Copy Mermaid</button>
+        </div>
+        <div class="scroll"><div id="modelDiagram">
+          <div class="explorer welcome">
+            <div class="explorer-note">PBIP EXPLORER</div>
+            <h2>Explore a Power BI semantic model from its project files</h2>
+            <p>Open a <code>.pbip</code> project folder to browse tables, relationships, measures and DAX lineage, trace report visuals back to source, and audit for broken or unused measures.</p>
+            <div class="welcome-actions">
+              <button class="btn primary" data-welcome="open">⊞ Open PBIP folder…</button>
+              <button class="btn" data-welcome="demo">▷ Try the demo model</button>
+            </div>
+            <div class="privacy">
+              <b>Your files never leave your computer.</b> Everything runs in this browser tab. The page has no server, makes no network requests, and its security policy blocks it from sending data anywhere.
+            </div>
+            <p class="explorer-note">Needs a project saved in Power BI Project format with TMDL (<i>File › Save as › Power BI project</i>). Include the <code>.Report</code> folder to map visuals and usage. Folder picking works best in Chrome or Edge; other browsers use a standard folder upload, still processed locally.</p>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- LINEAGE -->
+      <div class="view" id="view-lineage">
+        <div class="toolbar">
+          <span class="status" id="lineageTitle">Select a measure or column from the left</span>
+          <span class="hint" id="linHint">click a node = highlight what feeds it · double-click = open in detail</span>
+          <div class="zoom" data-host="lineageDiagram" style="margin-left:auto">
+            <button data-z="out" title="Zoom out">−</button>
+            <button data-z="reset" title="Reset">⊙</button>
+            <button data-z="in" title="Zoom in">+</button>
+            <button data-z="fit" title="Fit width">⤢</button>
+          </div>
+          <span class="toggle" id="isolateToggle" title="Hide everything except the highlighted upstream">⊘ Isolate</span>
+          <button class="btn" id="rerootBtn" style="display:none"></button>
+          <button class="btn" id="clearHl">Clear</button>
+          <button class="btn" id="copyLinMmd">⧉ Copy Mermaid</button>
+        </div>
+        <div class="scroll diagram-scroll"><div class="diagram" id="lineageDiagram">
+          <div class="empty"><div class="big">Pick a measure to trace its DAX lineage</div>
+          <div>…through dependent measures, columns and tables, down to the data source.</div></div>
+        </div></div>
+      </div>
+
+      <!-- DETAIL -->
+      <div class="view" id="view-detail">
+        <div class="detail-toolbar" id="detailToolbar" style="display:none">
+          <button class="btn" id="mdBtn" title="Generate a Markdown spec: this measure and all upstream dependencies down to source">⌄ Markdown</button>
+          <button class="btn" id="mdModelBtn" title="Generate Markdown for every measure in the model (can be large)">⌄ Whole model</button>
+        </div>
+        <div class="scroll" style="position:relative">
+          <div id="detailBody" class="detail">
+            <div class="empty"><div class="big">Select an item to inspect its DAX / M and properties</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- REPORT -->
+      <div class="view" id="view-report">
+        <div class="toolbar">
+          <label>Page</label>
+          <select id="reportPageSel"></select>
+          <span class="rpt-hint">click a visual to trace its measures → DAX → source</span>
+          <button class="btn" id="reportPageVs" title="Open this page's page.json in VS Code">⌁ page.json</button>
+          <button class="btn" id="reportExport" style="margin-left:auto">⤓ Export components</button>
+          <div class="legend" id="reportLegend"></div>
+        </div>
+        <div class="scroll diagram-scroll"><div class="diagram" id="reportCanvas"></div></div>
+      </div>
+
+      <!-- AUDIT -->
+      <div class="view" id="view-audit">
+        <div class="toolbar">
+          <div class="seg" id="auditFilter">
+            <button class="seg-btn active" data-f="all">All</button>
+            <button class="seg-btn" data-f="unused">Not observed</button>
+            <button class="seg-btn" data-f="broken">⚠ Review</button>
+          </div>
+          <span class="status" id="auditSummary"></span>
+          <button class="btn" id="auditCsv" style="margin-left:auto">⤓ CSV</button>
+        </div>
+        <div class="scroll"><div id="auditBody"><div class="empty"><div class="big">Load a model to audit its measures</div></div></div></div>
+      </div>
+
+    </div>
+  </section>
+</main>
+<footer class="sitefoot">PBIP Explorer · runs entirely in your browser · not affiliated with or endorsed by Microsoft. Power BI is a trademark of Microsoft Corporation. · <a href="https://github.com/DarcysDad/pbip-explorer" rel="noopener">Source &amp; licence</a></footer>
+
+
+<div id="mdModal" class="md-modal" style="display:none">
+  <div class="md-dialog">
+    <div class="md-head">
+      <span id="mdTitle">Markdown</span>
+      <div class="md-actions">
+        <button class="btn" id="mdCopy">⧉ Copy</button>
+        <button class="btn" id="mdDownload">⤓ Download .md</button>
+        <button class="btn" id="mdClose">✕ Close</button>
+      </div>
+    </div>
+    <textarea id="mdText" spellcheck="false" readonly></textarea>
+  </div>
+</div>
+
+<script src="js/parser.js"></script>
+<script src="js/demo-model.js" defer></script>
+<script src="js/app.js" defer></script>
+</body>
+</html>

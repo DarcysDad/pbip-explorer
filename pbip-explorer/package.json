@@ -1,0 +1,13 @@
+{
+  "name": "pbip-explorer",
+  "version": "26.0.0",
+  "private": true,
+  "description": "Explore Power BI semantic models from PBIP/TMDL project files, entirely in the browser.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "demo": "python3 tools/gen_demo.py",
+    "build": "node build.mjs",
+    "serve": "npx --yes serve src -l 5173"
+  }
+}
